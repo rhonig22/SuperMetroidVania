@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UIElements;
@@ -8,12 +9,13 @@ public class PlayerController : MonoBehaviour
 {
     public Vector3 CurrentDirection { get; private set; } = Vector2.up;
     public bool IsInvincible { get; private set; } = false;
-    private float _horizontalInput, _coyoteTimeCounter = 0, _jumpBufferCounter = 0, _currentJumpForce = 20f;
-    private bool _isDodging, _noMovement, _isDead = false, _isGrounded = false, _performJump = false;
-    private readonly float _topSpeed = 12f, _timeToTopSpeed = .2f, _degradeInertiaMultiplier = 6f, _dashMultiplier = 1.5f, _jumpBufferTime = .2f, _coyoteTime = .25f;
+    private float _horizontalInput, _coyoteTimeCounter = 0, _jumpBufferCounter = 0, _currentJumpForce = 30f;
+    private bool _isDodging, _noMovement, _isDead = false, _performJump = false;
+    private readonly float _topSpeed = 12f, _timeToTopSpeed = .2f, _degradeInertiaMultiplier = 6f, _jumpBufferTime = .2f, _coyoteTime = .2f;
     [SerializeField] private Rigidbody2D _playerRB;
     [SerializeField] private Animator _spriteAnimator;
     [SerializeField] private AudioClip _playerJumpClip;
+    private PlayerGrounding _grounding;
 
     private void Awake()
     {
@@ -21,6 +23,7 @@ public class PlayerController : MonoBehaviour
 
     private void Start()
     {
+        _grounding = GetComponentInChildren<PlayerGrounding>();
     }
 
     // Update is called once per frame
@@ -31,7 +34,7 @@ public class PlayerController : MonoBehaviour
 
         _horizontalInput = Input.GetAxisRaw("Horizontal");
         // Coyote Time Logic
-        if (_isGrounded)
+        if (_grounding.IsGrounded)
         {
             _coyoteTimeCounter = _coyoteTime;
         }
@@ -100,29 +103,17 @@ public class PlayerController : MonoBehaviour
 
     private void Move(Vector3 targetDirection)
     {
-        var stopMovement = _noMovement;
         if (targetDirection.magnitude > 0)
         {
             CurrentDirection = targetDirection;
         }
-        else
-        {
-            stopMovement = true;
-        }
 
-        if (!stopMovement)
-        {
-            _playerRB.drag = 0;
-            Vector3 targetVelocity = targetDirection.normalized * _topSpeed;
-            Vector2 diffVelocity = new Vector2(targetVelocity.x - _playerRB.velocity.x, 0);
-            if (targetVelocity.x == 0)
-                diffVelocity.x *= _degradeInertiaMultiplier;
-            _playerRB.AddForce(diffVelocity / _timeToTopSpeed);
-        }
-        else if (_isGrounded)
-        {
-            // _playerRB.drag = _topSpeed / _timeToTopSpeed;
-        }
+        _playerRB.drag = 0;
+        Vector3 targetVelocity = targetDirection.normalized * _topSpeed;
+        Vector2 diffVelocity = new Vector2(targetVelocity.x - _playerRB.velocity.x, 0);
+        if (targetVelocity.x == 0)
+            diffVelocity.x *= _degradeInertiaMultiplier;
+        _playerRB.AddForce(diffVelocity / _timeToTopSpeed);
     }
 
     private void StartJump()
@@ -130,28 +121,6 @@ public class PlayerController : MonoBehaviour
         // _spriteAnimator.SetTrigger("Jump");
         _playerRB.AddForce(Vector3.up * _currentJumpForce, ForceMode2D.Impulse);
         _performJump = false;
-    }
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        CheckGrounding(collision);
-    }
-
-    private void OnCollisionStay2D(Collision2D collision)
-    {
-        CheckGrounding(collision);
-    }
-
-    private void OnCollisionExit2D(Collision2D collision)
-    {
-        _isGrounded = false;
-    }
-
-    private void CheckGrounding(Collision2D collision)
-    {
-        for (int i = 0; i < collision.contactCount; i++)
-        {
-            Vector2 normal = collision.GetContact(i).normal;
-            _isGrounded |= Vector2.Angle(normal, Vector2.up) < 90;
-        }
+        SoundManager.Instance.PlaySound(_playerJumpClip, transform.position);
     }
 }
